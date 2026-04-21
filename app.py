@@ -313,100 +313,121 @@ elif pagina == "🎮 Mesa de Control":
         if partido['estado'] == 'En curso':
             ACCIONES = [
                 ("+1", "+1", 1), ("+2", "+2", 2), ("+3", "+3", 3),
-                ("RO", "Rebote Ofensivo", 0), ("RD", "Rebote Defensivo", 0),
+                ("RO", "Reb.Of", 0), ("RD", "Reb.Def", 0),
                 ("AST", "Asistencia", 0), ("REC", "Recupero", 0),
                 ("PER", "Pérdida", 0), ("FLT", "Falta", 0),
             ]
 
+            col_local, col_sep, col_visit = st.columns([5, 0.2, 5])
+
+            # Recopilar jugadores en cancha de ambos equipos para el selector común
+            todos_en_cancha = []
             for equipo_id, equipo_nombre in [
                 (partido['equipo_local_id'], partido['local_nombre']),
                 (partido['equipo_visitante_id'], partido['visitante_nombre'])
             ]:
-                st.markdown(f"### 📋 {equipo_nombre}")
-                jugadores = listar_jugadores(equipo_id)
-                if not jugadores:
-                    st.warning("Sin jugadores cargados.")
-                    continue
-
                 en_cancha_ids = obtener_en_cancha(partido_id, equipo_id)
+                jugadores = listar_jugadores(equipo_id)
+                for j in jugadores:
+                    if j['id'] in en_cancha_ids:
+                        todos_en_cancha.append((equipo_nombre, j))
 
-                # Obtener stats actuales para mostrar faltas
-                stats = obtener_stats_partido(partido_id)
-                stats_dict = {s['jugador_id']: s for s in stats}
+            # ═══ BOTONES COMUNES DE ESTADÍSTICAS ═══
+            if todos_en_cancha:
+                st.markdown("---")
+                st.markdown("### 📊 Registrar Estadística")
+                # Selector de jugador (de cualquier equipo)
+                jug_opciones = {f"{eq} — #{j['dorsal']} {j['nombre']}": j['id'] for eq, j in todos_en_cancha}
+                sel_jug_comun = st.radio("Seleccioná el jugador:", list(jug_opciones.keys()),
+                                         key=f"sel_jug_comun_{partido_id}", horizontal=True)
+                jug_id_comun = jug_opciones[sel_jug_comun]
 
-                # --- Gestión de Titulares ---
-                st.markdown("#### 🏀 Gestión de Cancha")
-                jugadores_fuera = [j for j in jugadores if j['id'] not in en_cancha_ids]
-                jugadores_dentro = [j for j in jugadores if j['id'] in en_cancha_ids]
-
-                # Mostrar quiénes están en cancha
-                if jugadores_dentro:
-                    cancha_names = ", ".join([f"#{j['dorsal']} {j['nombre']}" for j in jugadores_dentro])
-                    st.success(f"**En cancha ({len(jugadores_dentro)}):** {cancha_names}")
-                else:
-                    st.info("No hay jugadores en cancha. Seleccioná los 5 titulares.")
-
-                # Botones para meter jugadores
-                if jugadores_fuera and len(en_cancha_ids) < 5:
-                    cols_in = st.columns(min(len(jugadores_fuera), 5))
-                    for i, jug in enumerate(jugadores_fuera[:5]):
-                        with cols_in[i]:
-                            if st.button(f"⬆️ #{jug['dorsal']}", key=f"in_{partido_id}_{equipo_id}_{jug['id']}",
-                                         help=f"Meter a {jug['nombre']}"):
-                                ingresar_jugador_cancha(partido_id, jug['id'], time.time())
-                                st.rerun()
-                    # Si hay más de 5 fuera, mostrar los restantes
-                    if len(jugadores_fuera) > 5:
-                        cols_in2 = st.columns(min(len(jugadores_fuera) - 5, 5))
-                        for i, jug in enumerate(jugadores_fuera[5:10]):
-                            with cols_in2[i]:
-                                if st.button(f"⬆️ #{jug['dorsal']}", key=f"in2_{partido_id}_{equipo_id}_{jug['id']}",
-                                             help=f"Meter a {jug['nombre']}"):
-                                    ingresar_jugador_cancha(partido_id, jug['id'], time.time())
-                                    st.rerun()
-
-                # Botones para sacar jugadores (cambio)
-                if jugadores_dentro:
-                    st.markdown("**Sacar del juego:**")
-                    cols_out = st.columns(min(len(jugadores_dentro), 5))
-                    for i, jug in enumerate(jugadores_dentro):
-                        with cols_out[i]:
-                            if st.button(f"⬇️ #{jug['dorsal']}", key=f"out_{partido_id}_{equipo_id}_{jug['id']}",
-                                         help=f"Sacar a {jug['nombre']}"):
-                                sacar_jugador_cancha(partido_id, jug['id'], time.time())
-                                st.rerun()
-
+                # 9 botones en 3 filas
+                row1 = st.columns(3)
+                for i, (label, tipo, valor) in enumerate(ACCIONES[:3]):
+                    with row1[i]:
+                        if st.button(f"🏀 {label}", key=f"comun_{partido_id}_{jug_id_comun}_{tipo}",
+                                     use_container_width=True):
+                            registrar_evento(partido_id, jug_id_comun, tipo, valor, st.session_state.cuarto_actual)
+                            st.rerun()
+                row2 = st.columns(3)
+                for i, (label, tipo, valor) in enumerate(ACCIONES[3:6]):
+                    with row2[i]:
+                        if st.button(f"📊 {label}", key=f"comun_{partido_id}_{jug_id_comun}_{tipo}",
+                                     use_container_width=True):
+                            registrar_evento(partido_id, jug_id_comun, tipo, valor, st.session_state.cuarto_actual)
+                            st.rerun()
+                row3 = st.columns(3)
+                for i, (label, tipo, valor) in enumerate(ACCIONES[6:9]):
+                    with row3[i]:
+                        if st.button(f"⚠️ {label}", key=f"comun_{partido_id}_{jug_id_comun}_{tipo}",
+                                     use_container_width=True):
+                            registrar_evento(partido_id, jug_id_comun, tipo, valor, st.session_state.cuarto_actual)
+                            st.rerun()
                 st.markdown("---")
 
-                # --- Roster completo con stats y tiempo ---
-                st.markdown("#### 📊 Roster y Estadísticas")
-                for jug in jugadores:
-                    jug_stats = stats_dict.get(jug['id'], {})
-                    faltas = jug_stats.get('faltas', 0) if isinstance(jug_stats, dict) else 0
-                    pts = jug_stats.get('pts', 0) if isinstance(jug_stats, dict) else 0
+            # ═══ PANELES DE EQUIPOS (lado a lado) ═══
+            for col_equipo, (equipo_id, equipo_nombre) in zip(
+                [col_local, col_visit],
+                [(partido['equipo_local_id'], partido['local_nombre']),
+                 (partido['equipo_visitante_id'], partido['visitante_nombre'])]
+            ):
+                with col_equipo:
+                    st.markdown(f"### 📋 {equipo_nombre}")
+                    jugadores = listar_jugadores(equipo_id)
+                    if not jugadores:
+                        st.warning("Sin jugadores cargados.")
+                        continue
 
-                    # Tiempo de juego
-                    tiempo_seg = obtener_tiempo_total(partido_id, jug['id'])
-                    t_min = int(tiempo_seg // 60)
-                    t_sec = int(tiempo_seg % 60)
+                    en_cancha_ids = obtener_en_cancha(partido_id, equipo_id)
+                    stats = obtener_stats_partido(partido_id)
+                    stats_dict = {s['jugador_id']: s for s in stats}
 
-                    en_cancha = "🟢" if jug['id'] in en_cancha_ids else "⚪"
-                    falta_color = "🔴" if faltas >= 5 else ""
-                    st.markdown(
-                        f"{en_cancha} **#{jug['dorsal']} {jug['nombre']}** — "
-                        f"{pts} pts — Faltas: {faltas} {falta_color} — "
-                        f"⏱️ {t_min:02d}:{t_sec:02d}"
-                    )
+                    # --- Gestión de cancha compacta ---
+                    jugadores_fuera = [j for j in jugadores if j['id'] not in en_cancha_ids]
+                    jugadores_dentro = [j for j in jugadores if j['id'] in en_cancha_ids]
 
-                    # Solo mostrar botones de acción para jugadores EN CANCHA
-                    if jug['id'] in en_cancha_ids:
-                        cols = st.columns(len(ACCIONES))
-                        for i, (label, tipo, valor) in enumerate(ACCIONES):
-                            with cols[i]:
-                                if st.button(label, key=f"act_{partido_id}_{jug['id']}_{tipo}"):
-                                    registrar_evento(partido_id, jug['id'], tipo, valor, st.session_state.cuarto_actual)
+                    with st.expander(f"🔄 Cancha ({len(jugadores_dentro)}/5) — click para cambios", expanded=len(jugadores_dentro) == 0):
+                        if jugadores_dentro:
+                            cancha_txt = " | ".join([f"#{j['dorsal']}" for j in jugadores_dentro])
+                            st.success(f"En cancha: {cancha_txt}")
+                        for jug in jugadores:
+                            c1, c2 = st.columns([3, 1])
+                            c1.write(f"#{jug['dorsal']} {jug['nombre']}")
+                            if jug['id'] in en_cancha_ids:
+                                if c2.button("⬇️", key=f"out_{partido_id}_{equipo_id}_{jug['id']}", help="Sacar"):
+                                    sacar_jugador_cancha(partido_id, jug['id'], time.time())
                                     st.rerun()
-                st.markdown("---")
+                            else:
+                                if len(en_cancha_ids) < 5:
+                                    if c2.button("⬆️", key=f"in_{partido_id}_{equipo_id}_{jug['id']}", help="Meter"):
+                                        ingresar_jugador_cancha(partido_id, jug['id'], time.time())
+                                        st.rerun()
+
+                    # --- Tabla resumen compacta ---
+                    st.markdown("**Estadísticas:**")
+                    tabla_data = []
+                    for jug in jugadores:
+                        s = stats_dict.get(jug['id'], {})
+                        faltas = s.get('faltas', 0) if isinstance(s, dict) else 0
+                        tiempo_seg = obtener_tiempo_total(partido_id, jug['id'])
+                        t_min = int(tiempo_seg // 60)
+                        t_sec = int(tiempo_seg % 60)
+                        en = "🟢" if jug['id'] in en_cancha_ids else "⚪"
+                        tabla_data.append({
+                            '': en,
+                            '#': jug['dorsal'],
+                            'Jugador': jug['nombre'],
+                            'PTS': s.get('pts', 0) if isinstance(s, dict) else 0,
+                            'RO': s.get('reb_of', 0) if isinstance(s, dict) else 0,
+                            'RD': s.get('reb_def', 0) if isinstance(s, dict) else 0,
+                            'AST': s.get('asistencias', 0) if isinstance(s, dict) else 0,
+                            'REC': s.get('recuperos', 0) if isinstance(s, dict) else 0,
+                            'PER': s.get('perdidas', 0) if isinstance(s, dict) else 0,
+                            'FLT': f"{'🔴' if faltas >= 5 else ''}{faltas}",
+                            '⏱️': f"{t_min:02d}:{t_sec:02d}",
+                        })
+                    st.dataframe(pd.DataFrame(tabla_data), hide_index=True, use_container_width=True, height=250)
 
         # --- Log de Eventos ---
         st.subheader("📝 Log de Eventos (últimos 5)")
