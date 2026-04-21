@@ -16,6 +16,9 @@ from db import (
     guardar_puntaje_cuarto, obtener_puntaje_cuartos,
     ingresar_jugador_cancha, sacar_jugador_cancha, obtener_en_cancha,
     obtener_tiempo_total, sacar_todos_de_cancha, obtener_cuartos_jugados,
+    verificar_usuario, crear_usuario, listar_usuarios, eliminar_usuario,
+    crear_torneo, listar_torneos, activar_desactivar_torneo, eliminar_torneo,
+    listar_categorias, agregar_categoria, eliminar_categoria,
 )
 
 st.set_page_config(page_title="Torneos de Basket", page_icon="🏀", layout="wide")
@@ -27,20 +30,176 @@ LOGOS_DIR = os.path.join(os.path.dirname(__file__), "logos")
 os.makedirs(LOGOS_DIR, exist_ok=True)
 
 RAMAS = ["Masculino", "Femenino"]
-CATEGORIAS = ["U13", "U15", "U17", "Primera"]
+
+# Categorías dinámicas desde la BD
+def obtener_categorias_nombres():
+    cats = listar_categorias()
+    return [c['nombre'] for c in cats] if cats else ["U13", "U15", "U17", "Primera"]
+
+CATEGORIAS = obtener_categorias_nombres()
+
+# ─── SISTEMA DE LOGIN ───
+if "usuario_logueado" not in st.session_state:
+    st.session_state.usuario_logueado = None
+
+if st.session_state.usuario_logueado is None:
+    st.title("🏀 Torneos de Basket")
+    st.subheader("Iniciar Sesión")
+    with st.form("login_form"):
+        username = st.text_input("Usuario")
+        password = st.text_input("Contraseña", type="password")
+        if st.form_submit_button("Ingresar", type="primary"):
+            user = verificar_usuario(username, password)
+            if user:
+                st.session_state.usuario_logueado = user
+                st.rerun()
+            else:
+                st.error("❌ Usuario o contraseña incorrectos")
+    st.caption("Usuario por defecto: **admin** / Contraseña: **admin123**")
+    st.stop()
+
+# Usuario logueado
+usuario = st.session_state.usuario_logueado
+es_admin = usuario['rol'] == 'admin'
 
 # ─── SIDEBAR NAV ───
 st.sidebar.title("🏀 Torneos de Basket")
+st.sidebar.markdown(f"👤 **{usuario['nombre']}** ({usuario['rol']})")
+if st.sidebar.button("🚪 Cerrar Sesión"):
+    st.session_state.usuario_logueado = None
+    st.rerun()
+
+# Menú según rol
+paginas_disponibles = ["📋 Inscripción", "🏟️ Partidos", "🎮 Mesa de Control", "📊 Resultados y Posiciones", "📄 Exportar"]
+if es_admin:
+    paginas_disponibles.insert(0, "🏠 Dashboard")
+
 pagina = st.sidebar.radio(
     "Navegación",
-    ["📋 Inscripción", "🏟️ Partidos", "🎮 Mesa de Control", "📊 Resultados y Posiciones", "📄 Exportar"]
+    paginas_disponibles
 )
+
+
+# ═══════════════════════════════════════════════════════════
+# PÁGINA 0: DASHBOARD (solo admin)
+# ═══════════════════════════════════════════════════════════
+if pagina == "🏠 Dashboard":
+    st.title("🏠 Dashboard de Administración")
+
+    tab_torneos, tab_categorias, tab_usuarios = st.tabs(["🏆 Torneos", "📂 Categorías", "👥 Usuarios"])
+
+    # --- Tab: Torneos ---
+    with tab_torneos:
+        st.subheader("Gestión de Torneos")
+        with st.form("form_torneo", clear_on_submit=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                t_nombre = st.text_input("Nombre del torneo")
+            with col2:
+                t_inicio = st.date_input("Fecha inicio", value=datetime.date.today())
+            with col3:
+                t_fin = st.date_input("Fecha fin", value=datetime.date.today() + datetime.timedelta(days=7))
+            if st.form_submit_button("Crear Torneo", type="primary"):
+                if t_nombre.strip():
+                    tid = crear_torneo(t_nombre.strip(), t_inicio.isoformat(), t_fin.isoformat())
+                    st.success(f"✅ Torneo '{t_nombre}' creado (ID: {tid})")
+                else:
+                    st.error("El nombre es obligatorio.")
+
+        torneos = listar_torneos()
+        if torneos:
+            st.markdown("### Torneos existentes")
+            for t in torneos:
+                col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                estado = "🟢 Activo" if t['activo'] else "🔴 Inactivo"
+                col1.write(f"**{t['nombre']}**")
+                col2.write(f"{t.get('fecha_inicio', '')} → {t.get('fecha_fin', '')} — {estado}")
+                with col3:
+                    if t['activo']:
+                        if st.button("⏸️", key=f"desact_t_{t['id']}", help="Desactivar"):
+                            activar_desactivar_torneo(t['id'], 0)
+                            st.rerun()
+                    else:
+                        if st.button("▶️", key=f"act_t_{t['id']}", help="Activar"):
+                            activar_desactivar_torneo(t['id'], 1)
+                            st.rerun()
+                with col4:
+                    if st.button("🗑️", key=f"del_t_{t['id']}", help="Eliminar"):
+                        eliminar_torneo(t['id'])
+                        st.rerun()
+        else:
+            st.info("No hay torneos creados.")
+
+    # --- Tab: Categorías ---
+    with tab_categorias:
+        st.subheader("Gestión de Categorías")
+        st.caption("Agregá o eliminá categorías para los equipos.")
+        with st.form("form_categoria", clear_on_submit=True):
+            nueva_cat = st.text_input("Nombre de la nueva categoría")
+            if st.form_submit_button("Agregar Categoría", type="primary"):
+                if nueva_cat.strip():
+                    ok = agregar_categoria(nueva_cat.strip())
+                    if ok:
+                        st.success(f"✅ Categoría '{nueva_cat}' agregada")
+                    else:
+                        st.error("Ya existe una categoría con ese nombre.")
+                else:
+                    st.error("El nombre es obligatorio.")
+
+        cats = listar_categorias()
+        if cats:
+            st.markdown("### Categorías actuales")
+            for cat in cats:
+                col1, col2 = st.columns([4, 1])
+                col1.write(f"📂 **{cat['nombre']}**")
+                with col2:
+                    if st.button("🗑️", key=f"del_cat_{cat['id']}", help="Eliminar"):
+                        eliminar_categoria(cat['id'])
+                        st.rerun()
+
+    # --- Tab: Usuarios ---
+    with tab_usuarios:
+        st.subheader("Gestión de Usuarios")
+        with st.form("form_usuario", clear_on_submit=True):
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                u_nombre = st.text_input("Nombre completo")
+            with col2:
+                u_username = st.text_input("Usuario")
+            with col3:
+                u_password = st.text_input("Contraseña", type="password")
+            with col4:
+                u_rol = st.selectbox("Rol", ["mesero", "admin"])
+            if st.form_submit_button("Crear Usuario", type="primary"):
+                if u_nombre.strip() and u_username.strip() and u_password:
+                    uid = crear_usuario(u_username.strip(), u_password, u_nombre.strip(), u_rol)
+                    if uid:
+                        st.success(f"✅ Usuario '{u_username}' creado")
+                    else:
+                        st.error("Ya existe un usuario con ese nombre de usuario.")
+                else:
+                    st.error("Completá todos los campos.")
+
+        usuarios = listar_usuarios()
+        if usuarios:
+            st.markdown("### Usuarios registrados")
+            for u in usuarios:
+                col1, col2, col3 = st.columns([3, 2, 1])
+                col1.write(f"👤 **{u['nombre']}** ({u['username']})")
+                col2.write(f"Rol: {u['rol']}")
+                with col3:
+                    if u['username'] != 'admin':
+                        if st.button("🗑️", key=f"del_u_{u['id']}", help="Eliminar"):
+                            eliminar_usuario(u['id'])
+                            st.rerun()
+                    else:
+                        st.write("🔒")
 
 
 # ═══════════════════════════════════════════════════════════
 # PÁGINA 1: INSCRIPCIÓN
 # ═══════════════════════════════════════════════════════════
-if pagina == "📋 Inscripción":
+elif pagina == "📋 Inscripción":
     st.title("📋 Inscripción de Equipos")
 
     tab_equipo, tab_jugadores, tab_listado = st.tabs(["Nuevo Equipo", "Agregar Jugadores", "Equipos Inscriptos"])

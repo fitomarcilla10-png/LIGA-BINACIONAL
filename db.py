@@ -22,7 +22,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
             rama TEXT NOT NULL CHECK(rama IN ('Masculino','Femenino')),
-            categoria TEXT NOT NULL CHECK(categoria IN ('U13','U15','U17','Primera')),
+            categoria TEXT NOT NULL,
             logo_url TEXT
         )
     """)
@@ -103,6 +103,46 @@ def init_db():
             FOREIGN KEY (jugador_id) REFERENCES jugadores(id)
         )
     """)
+    # Tabla de usuarios
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            rol TEXT NOT NULL DEFAULT 'mesero'
+                CHECK(rol IN ('admin','mesero'))
+        )
+    """)
+    # Insertar admin por defecto si no existe
+    admin_exists = c.execute("SELECT id FROM usuarios WHERE username='admin'").fetchone()
+    if not admin_exists:
+        import hashlib
+        pwd_hash = hashlib.sha256("admin123".encode()).hexdigest()
+        c.execute("INSERT INTO usuarios (username, password, nombre, rol) VALUES (?,?,?,?)",
+                  ("admin", pwd_hash, "Administrador", "admin"))
+    # Tabla de torneos
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS torneos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            fecha_inicio TEXT,
+            fecha_fin TEXT,
+            activo INTEGER DEFAULT 1
+        )
+    """)
+    # Tabla de categorías dinámicas
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS categorias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE
+        )
+    """)
+    # Insertar categorías por defecto si la tabla está vacía
+    cats_exist = c.execute("SELECT COUNT(*) as n FROM categorias").fetchone()
+    if cats_exist['n'] == 0:
+        for cat in ['U13', 'U15', 'U17', 'Primera']:
+            c.execute("INSERT INTO categorias (nombre) VALUES (?)", (cat,))
     conn.commit()
     conn.close()
 
@@ -434,3 +474,115 @@ def obtener_puntaje_cuartos(partido_id):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# --- USUARIOS ---
+def verificar_usuario(username, password):
+    import hashlib
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM usuarios WHERE username=? AND password=?",
+        (username, pwd_hash)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def crear_usuario(username, password, nombre, rol='mesero'):
+    import hashlib
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    conn = get_connection()
+    try:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO usuarios (username, password, nombre, rol) VALUES (?,?,?,?)",
+            (username, pwd_hash, nombre, rol)
+        )
+        conn.commit()
+        uid = c.lastrowid
+        conn.close()
+        return uid
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
+
+
+def listar_usuarios():
+    conn = get_connection()
+    rows = conn.execute("SELECT id, username, nombre, rol FROM usuarios ORDER BY nombre").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def eliminar_usuario(user_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM usuarios WHERE id = ? AND username != 'admin'", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+# --- TORNEOS ---
+def crear_torneo(nombre, fecha_inicio=None, fecha_fin=None):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO torneos (nombre, fecha_inicio, fecha_fin) VALUES (?,?,?)",
+        (nombre, fecha_inicio, fecha_fin)
+    )
+    conn.commit()
+    tid = c.lastrowid
+    conn.close()
+    return tid
+
+
+def listar_torneos(solo_activos=False):
+    conn = get_connection()
+    query = "SELECT * FROM torneos"
+    if solo_activos:
+        query += " WHERE activo = 1"
+    query += " ORDER BY id DESC"
+    rows = conn.execute(query).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def activar_desactivar_torneo(torneo_id, activo):
+    conn = get_connection()
+    conn.execute("UPDATE torneos SET activo=? WHERE id=?", (activo, torneo_id))
+    conn.commit()
+    conn.close()
+
+
+def eliminar_torneo(torneo_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM torneos WHERE id = ?", (torneo_id,))
+    conn.commit()
+    conn.close()
+
+
+# --- CATEGORÍAS DINÁMICAS ---
+def listar_categorias():
+    conn = get_connection()
+    rows = conn.execute("SELECT * FROM categorias ORDER BY nombre").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def agregar_categoria(nombre):
+    conn = get_connection()
+    try:
+        conn.execute("INSERT INTO categorias (nombre) VALUES (?)", (nombre.strip(),))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False
+
+
+def eliminar_categoria(cat_id):
+    conn = get_connection()
+    conn.execute("DELETE FROM categorias WHERE id = ?", (cat_id,))
+    conn.commit()
+    conn.close()
