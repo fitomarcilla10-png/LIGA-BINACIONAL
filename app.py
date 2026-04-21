@@ -15,7 +15,7 @@ from db import (
     obtener_stats_partido, obtener_puntos_equipo,
     guardar_puntaje_cuarto, obtener_puntaje_cuartos,
     ingresar_jugador_cancha, sacar_jugador_cancha, obtener_en_cancha,
-    obtener_tiempo_total, sacar_todos_de_cancha,
+    obtener_tiempo_total, sacar_todos_de_cancha, obtener_cuartos_jugados,
 )
 
 st.set_page_config(page_title="Torneos de Basket", page_icon="🏀", layout="wide")
@@ -318,80 +318,109 @@ elif pagina == "🎮 Mesa de Control":
                 ("PER", "Pérdida", 0), ("FLT", "Falta", 0),
             ]
 
-            col_local, col_sep, col_visit = st.columns([5, 0.2, 5])
+            # Obtener jugadores en cancha de ambos equipos
+            local_id = partido['equipo_local_id']
+            visit_id = partido['equipo_visitante_id']
+            en_cancha_local = obtener_en_cancha(partido_id, local_id)
+            en_cancha_visit = obtener_en_cancha(partido_id, visit_id)
+            jug_local = listar_jugadores(local_id)
+            jug_visit = listar_jugadores(visit_id)
+            jug_local_cancha = [j for j in jug_local if j['id'] in en_cancha_local]
+            jug_visit_cancha = [j for j in jug_visit if j['id'] in en_cancha_visit]
 
-            # Recopilar jugadores en cancha de ambos equipos para el selector común
-            todos_en_cancha = []
-            for equipo_id, equipo_nombre in [
-                (partido['equipo_local_id'], partido['local_nombre']),
-                (partido['equipo_visitante_id'], partido['visitante_nombre'])
-            ]:
-                en_cancha_ids = obtener_en_cancha(partido_id, equipo_id)
-                jugadores = listar_jugadores(equipo_id)
-                for j in jugadores:
-                    if j['id'] in en_cancha_ids:
-                        todos_en_cancha.append((equipo_nombre, j))
+            # Inicializar jugador seleccionado en session_state
+            if "jug_seleccionado" not in st.session_state:
+                st.session_state.jug_seleccionado = None
 
-            # ═══ BOTONES COMUNES DE ESTADÍSTICAS ═══
-            if todos_en_cancha:
-                st.markdown("---")
-                st.markdown("### 📊 Registrar Estadística")
-                # Selector de jugador (de cualquier equipo)
-                jug_opciones = {f"{eq} — #{j['dorsal']} {j['nombre']}": j['id'] for eq, j in todos_en_cancha}
-                sel_jug_comun = st.radio("Seleccioná el jugador:", list(jug_opciones.keys()),
-                                         key=f"sel_jug_comun_{partido_id}", horizontal=True)
-                jug_id_comun = jug_opciones[sel_jug_comun]
+            # ═══ LAYOUT: LOCAL | STATS | VISITANTE ═══
+            col_izq, col_centro, col_der = st.columns([2, 3, 2])
 
-                # 9 botones en 3 filas
-                row1 = st.columns(3)
-                for i, (label, tipo, valor) in enumerate(ACCIONES[:3]):
-                    with row1[i]:
-                        if st.button(f"🏀 {label}", key=f"comun_{partido_id}_{jug_id_comun}_{tipo}",
-                                     use_container_width=True):
-                            registrar_evento(partido_id, jug_id_comun, tipo, valor, st.session_state.cuarto_actual)
-                            st.rerun()
-                row2 = st.columns(3)
-                for i, (label, tipo, valor) in enumerate(ACCIONES[3:6]):
-                    with row2[i]:
-                        if st.button(f"📊 {label}", key=f"comun_{partido_id}_{jug_id_comun}_{tipo}",
-                                     use_container_width=True):
-                            registrar_evento(partido_id, jug_id_comun, tipo, valor, st.session_state.cuarto_actual)
-                            st.rerun()
-                row3 = st.columns(3)
-                for i, (label, tipo, valor) in enumerate(ACCIONES[6:9]):
-                    with row3[i]:
-                        if st.button(f"⚠️ {label}", key=f"comun_{partido_id}_{jug_id_comun}_{tipo}",
-                                     use_container_width=True):
-                            registrar_evento(partido_id, jug_id_comun, tipo, valor, st.session_state.cuarto_actual)
-                            st.rerun()
-                st.markdown("---")
+            # --- COLUMNA IZQUIERDA: Jugadores LOCAL ---
+            with col_izq:
+                st.markdown(f"**{partido['local_nombre']}**")
+                if not jug_local_cancha:
+                    st.info("Sin jugadores en cancha")
+                for j in jug_local_cancha:
+                    is_selected = st.session_state.jug_seleccionado == j['id']
+                    btn_type = "primary" if is_selected else "secondary"
+                    if st.button(f"#{j['dorsal']} {j['nombre']}", key=f"sel_loc_{partido_id}_{j['id']}",
+                                 use_container_width=True, type=btn_type):
+                        st.session_state.jug_seleccionado = j['id']
+                        st.rerun()
 
-            # ═══ PANELES DE EQUIPOS (lado a lado) ═══
-            for col_equipo, (equipo_id, equipo_nombre) in zip(
-                [col_local, col_visit],
-                [(partido['equipo_local_id'], partido['local_nombre']),
-                 (partido['equipo_visitante_id'], partido['visitante_nombre'])]
+            # --- COLUMNA DERECHA: Jugadores VISITANTE ---
+            with col_der:
+                st.markdown(f"**{partido['visitante_nombre']}**")
+                if not jug_visit_cancha:
+                    st.info("Sin jugadores en cancha")
+                for j in jug_visit_cancha:
+                    is_selected = st.session_state.jug_seleccionado == j['id']
+                    btn_type = "primary" if is_selected else "secondary"
+                    if st.button(f"#{j['dorsal']} {j['nombre']}", key=f"sel_vis_{partido_id}_{j['id']}",
+                                 use_container_width=True, type=btn_type):
+                        st.session_state.jug_seleccionado = j['id']
+                        st.rerun()
+
+            # --- COLUMNA CENTRO: Botones de estadísticas ---
+            with col_centro:
+                jug_sel = st.session_state.jug_seleccionado
+                if jug_sel:
+                    # Buscar nombre del jugador seleccionado
+                    nombre_sel = ""
+                    for j in jug_local_cancha + jug_visit_cancha:
+                        if j['id'] == jug_sel:
+                            nombre_sel = f"#{j['dorsal']} {j['nombre']}"
+                            break
+                    if nombre_sel:
+                        st.markdown(f"#### 📊 {nombre_sel}")
+                    else:
+                        st.warning("Jugador no está en cancha. Seleccioná otro.")
+                        st.session_state.jug_seleccionado = None
+                        jug_sel = None
+
+                if jug_sel:
+                    # Fila 1: Puntos
+                    row1 = st.columns(3)
+                    for i, (label, tipo, valor) in enumerate(ACCIONES[:3]):
+                        with row1[i]:
+                            if st.button(f"🏀 {label}", key=f"stat_{partido_id}_{jug_sel}_{tipo}",
+                                         use_container_width=True):
+                                registrar_evento(partido_id, jug_sel, tipo, valor, st.session_state.cuarto_actual)
+                                st.rerun()
+                    # Fila 2: Rebotes + Asistencia
+                    row2 = st.columns(3)
+                    for i, (label, tipo, valor) in enumerate(ACCIONES[3:6]):
+                        with row2[i]:
+                            if st.button(f"📊 {label}", key=f"stat_{partido_id}_{jug_sel}_{tipo}",
+                                         use_container_width=True):
+                                registrar_evento(partido_id, jug_sel, tipo, valor, st.session_state.cuarto_actual)
+                                st.rerun()
+                    # Fila 3: Recupero, Pérdida, Falta
+                    row3 = st.columns(3)
+                    for i, (label, tipo, valor) in enumerate(ACCIONES[6:9]):
+                        with row3[i]:
+                            if st.button(f"⚠️ {label}", key=f"stat_{partido_id}_{jug_sel}_{tipo}",
+                                         use_container_width=True):
+                                registrar_evento(partido_id, jug_sel, tipo, valor, st.session_state.cuarto_actual)
+                                st.rerun()
+                else:
+                    st.markdown("#### 📊 Estadísticas")
+                    st.info("👈 Seleccioná un jugador para registrar estadísticas 👉")
+
+            # ═══ GESTIÓN DE CANCHA + TABLAS (abajo) ═══
+            st.markdown("---")
+            col_tabla_loc, col_tabla_vis = st.columns(2)
+
+            for col_tabla, (equipo_id, equipo_nombre, jug_equipo, en_cancha_ids) in zip(
+                [col_tabla_loc, col_tabla_vis],
+                [(local_id, partido['local_nombre'], jug_local, en_cancha_local),
+                 (visit_id, partido['visitante_nombre'], jug_visit, en_cancha_visit)]
             ):
-                with col_equipo:
-                    st.markdown(f"### 📋 {equipo_nombre}")
-                    jugadores = listar_jugadores(equipo_id)
-                    if not jugadores:
-                        st.warning("Sin jugadores cargados.")
-                        continue
+                with col_tabla:
+                    jugadores_dentro = [j for j in jug_equipo if j['id'] in en_cancha_ids]
 
-                    en_cancha_ids = obtener_en_cancha(partido_id, equipo_id)
-                    stats = obtener_stats_partido(partido_id)
-                    stats_dict = {s['jugador_id']: s for s in stats}
-
-                    # --- Gestión de cancha compacta ---
-                    jugadores_fuera = [j for j in jugadores if j['id'] not in en_cancha_ids]
-                    jugadores_dentro = [j for j in jugadores if j['id'] in en_cancha_ids]
-
-                    with st.expander(f"🔄 Cancha ({len(jugadores_dentro)}/5) — click para cambios", expanded=len(jugadores_dentro) == 0):
-                        if jugadores_dentro:
-                            cancha_txt = " | ".join([f"#{j['dorsal']}" for j in jugadores_dentro])
-                            st.success(f"En cancha: {cancha_txt}")
-                        for jug in jugadores:
+                    with st.expander(f"🔄 {equipo_nombre} — Cancha ({len(jugadores_dentro)}/5)", expanded=len(jugadores_dentro) == 0):
+                        for jug in jug_equipo:
                             c1, c2 = st.columns([3, 1])
                             c1.write(f"#{jug['dorsal']} {jug['nombre']}")
                             if jug['id'] in en_cancha_ids:
@@ -404,10 +433,11 @@ elif pagina == "🎮 Mesa de Control":
                                         ingresar_jugador_cancha(partido_id, jug['id'], time.time())
                                         st.rerun()
 
-                    # --- Tabla resumen compacta ---
-                    st.markdown("**Estadísticas:**")
+                    # Tabla de stats
+                    stats = obtener_stats_partido(partido_id)
+                    stats_dict = {s['jugador_id']: s for s in stats}
                     tabla_data = []
-                    for jug in jugadores:
+                    for jug in jug_equipo:
                         s = stats_dict.get(jug['id'], {})
                         faltas = s.get('faltas', 0) if isinstance(s, dict) else 0
                         tiempo_seg = obtener_tiempo_total(partido_id, jug['id'])
@@ -425,6 +455,7 @@ elif pagina == "🎮 Mesa de Control":
                             'REC': s.get('recuperos', 0) if isinstance(s, dict) else 0,
                             'PER': s.get('perdidas', 0) if isinstance(s, dict) else 0,
                             'FLT': f"{'🔴' if faltas >= 5 else ''}{faltas}",
+                            'CJ': obtener_cuartos_jugados(partido_id, jug['id']),
                             '⏱️': f"{t_min:02d}:{t_sec:02d}",
                         })
                     st.dataframe(pd.DataFrame(tabla_data), hide_index=True, use_container_width=True, height=250)
@@ -553,8 +584,9 @@ elif pagina == "📄 Exportar":
             equipo_stats = [s for s in stats if s['equipo_id'] == equipo_id]
             if equipo_stats:
                 df = pd.DataFrame(equipo_stats)
-                df = df[['dorsal', 'nombre', 'pts', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas']]
-                df.columns = ['#', 'Jugador', 'PTS', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT']
+                df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
+                df = df[['dorsal', 'nombre', 'pts', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj']]
+                df.columns = ['#', 'Jugador', 'PTS', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ']
                 st.dataframe(df, hide_index=True, use_container_width=True)
 
         # Botón PDF
@@ -618,22 +650,23 @@ elif pagina == "📄 Exportar":
                 pdf.set_font("Helvetica", "B", 11)
                 pdf.cell(0, 8, equipo_nombre, ln=True)
                 pdf.set_font("Helvetica", "", 8)
-                headers = ["#", "Jugador", "PTS", "RO", "RD", "AST", "REC", "PER", "FLT"]
-                widths = [10, 40, 15, 15, 15, 15, 15, 15, 15]
+                headers = ["#", "Jugador", "PTS", "RO", "RD", "AST", "REC", "PER", "FLT", "CJ"]
+                widths = [10, 35, 14, 14, 14, 14, 14, 14, 14, 12]
                 for i, h in enumerate(headers):
                     pdf.cell(widths[i], 6, h, 1, 0, "C")
                 pdf.ln()
                 equipo_stats = [s for s in stats if s['equipo_id'] == equipo_id]
                 for s in equipo_stats:
-                    vals = [str(s['dorsal']), s['nombre'][:18], str(s['pts']),
+                    cj = obtener_cuartos_jugados(partido_id, s['jugador_id'])
+                    vals = [str(s['dorsal']), s['nombre'][:16], str(s['pts']),
                             str(s['reb_of']), str(s['reb_def']), str(s['asistencias']),
-                            str(s['recuperos']), str(s['perdidas']), str(s['faltas'])]
+                            str(s['recuperos']), str(s['perdidas']), str(s['faltas']), str(cj)]
                     for i, v in enumerate(vals):
                         pdf.cell(widths[i], 6, v, 1, 0, "C" if i != 1 else "L")
                     pdf.ln()
                 pdf.ln(5)
 
-            pdf_bytes = pdf.output()
+            pdf_bytes = bytes(pdf.output())
             st.download_button(
                 "⬇️ Descargar PDF",
                 data=pdf_bytes,

@@ -192,6 +192,17 @@ def sacar_todos_de_cancha(partido_id, timestamp):
     conn.close()
 
 
+def obtener_cuartos_jugados(partido_id, jugador_id):
+    """Devuelve la cantidad de cuartos distintos en los que el jugador registró eventos."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT cuarto) as total FROM eventos WHERE partido_id=? AND jugador_id=?",
+        (partido_id, jugador_id)
+    ).fetchone()
+    conn.close()
+    return row['total'] if row else 0
+
+
 # --- EQUIPOS ---
 def agregar_equipo(nombre, rama, categoria, logo_url=None):
     conn = get_connection()
