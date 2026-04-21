@@ -89,6 +89,105 @@ def init_db():
             FOREIGN KEY (equipo_id) REFERENCES equipos(id)
         )
     """)
+    # Tabla de tiempo de juego por jugador por partido
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS tiempo_juego (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partido_id INTEGER NOT NULL,
+            jugador_id INTEGER NOT NULL,
+            ingreso_timestamp REAL,
+            egreso_timestamp REAL,
+            segundos_jugados REAL DEFAULT 0,
+            en_cancha INTEGER DEFAULT 0,
+            FOREIGN KEY (partido_id) REFERENCES partidos(id),
+            FOREIGN KEY (jugador_id) REFERENCES jugadores(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+# --- TIEMPO DE JUEGO ---
+def ingresar_jugador_cancha(partido_id, jugador_id, timestamp):
+    """Marca un jugador como en cancha."""
+    conn = get_connection()
+    # Si ya está en cancha, no hacer nada
+    existing = conn.execute(
+        "SELECT id FROM tiempo_juego WHERE partido_id=? AND jugador_id=? AND en_cancha=1",
+        (partido_id, jugador_id)
+    ).fetchone()
+    if not existing:
+        conn.execute(
+            "INSERT INTO tiempo_juego (partido_id, jugador_id, ingreso_timestamp, en_cancha) VALUES (?,?,?,1)",
+            (partido_id, jugador_id, timestamp)
+        )
+        conn.commit()
+    conn.close()
+
+
+def sacar_jugador_cancha(partido_id, jugador_id, timestamp):
+    """Saca un jugador de cancha y registra el tiempo jugado."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id, ingreso_timestamp FROM tiempo_juego WHERE partido_id=? AND jugador_id=? AND en_cancha=1",
+        (partido_id, jugador_id)
+    ).fetchone()
+    if row:
+        segundos = timestamp - row['ingreso_timestamp']
+        conn.execute(
+            "UPDATE tiempo_juego SET en_cancha=0, egreso_timestamp=?, segundos_jugados=? WHERE id=?",
+            (timestamp, segundos, row['id'])
+        )
+        conn.commit()
+    conn.close()
+
+
+def obtener_en_cancha(partido_id, equipo_id):
+    """Devuelve los IDs de jugadores en cancha para un equipo."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT tj.jugador_id FROM tiempo_juego tj
+        JOIN jugadores j ON tj.jugador_id = j.id
+        WHERE tj.partido_id=? AND j.equipo_id=? AND tj.en_cancha=1
+    """, (partido_id, equipo_id)).fetchall()
+    conn.close()
+    return [r['jugador_id'] for r in rows]
+
+
+def obtener_tiempo_total(partido_id, jugador_id):
+    """Tiempo total jugado en segundos (suma de todos los períodos)."""
+    conn = get_connection()
+    # Tiempo de períodos cerrados
+    row = conn.execute(
+        "SELECT COALESCE(SUM(segundos_jugados), 0) as total FROM tiempo_juego WHERE partido_id=? AND jugador_id=? AND en_cancha=0",
+        (partido_id, jugador_id)
+    ).fetchone()
+    total = row['total']
+    # Si está en cancha ahora, sumar desde ingreso
+    activo = conn.execute(
+        "SELECT ingreso_timestamp FROM tiempo_juego WHERE partido_id=? AND jugador_id=? AND en_cancha=1",
+        (partido_id, jugador_id)
+    ).fetchone()
+    conn.close()
+    if activo:
+        import time as _time
+        total += _time.time() - activo['ingreso_timestamp']
+    return total
+
+
+def sacar_todos_de_cancha(partido_id, timestamp):
+    """Saca a todos los jugadores de cancha (al finalizar partido)."""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT id, jugador_id, ingreso_timestamp FROM tiempo_juego WHERE partido_id=? AND en_cancha=1",
+        (partido_id,)
+    ).fetchall()
+    for r in rows:
+        segundos = timestamp - r['ingreso_timestamp']
+        conn.execute(
+            "UPDATE tiempo_juego SET en_cancha=0, egreso_timestamp=?, segundos_jugados=? WHERE id=?",
+            (timestamp, segundos, r['id'])
+        )
     conn.commit()
     conn.close()
 

@@ -14,6 +14,8 @@ from db import (
     registrar_evento, obtener_ultimos_eventos, borrar_ultimo_evento,
     obtener_stats_partido, obtener_puntos_equipo,
     guardar_puntaje_cuarto, obtener_puntaje_cuartos,
+    ingresar_jugador_cancha, sacar_jugador_cancha, obtener_en_cancha,
+    obtener_tiempo_total, sacar_todos_de_cancha,
 )
 
 st.set_page_config(page_title="Torneos de Basket", page_icon="🏀", layout="wide")
@@ -94,6 +96,31 @@ if pagina == "📋 Inscripción":
                         st.success(f"✅ {jug_nombre} (#{dorsal}) agregado")
                     else:
                         st.error("El nombre es obligatorio.")
+
+            # --- Carga masiva por Excel ---
+            st.markdown("---")
+            st.markdown("**📥 Carga masiva desde Excel**")
+            st.caption("El archivo debe tener columnas: `nombre` y `dorsal`")
+            excel_file = st.file_uploader("Subir Excel (.xlsx)", type=["xlsx"], key=f"excel_{equipo_id}")
+            if excel_file:
+                try:
+                    df_excel = pd.read_excel(excel_file, engine="openpyxl")
+                    # Normalizar nombres de columnas
+                    df_excel.columns = [c.strip().lower() for c in df_excel.columns]
+                    if 'nombre' not in df_excel.columns or 'dorsal' not in df_excel.columns:
+                        st.error("El Excel debe tener columnas 'nombre' y 'dorsal'.")
+                    else:
+                        df_excel = df_excel.dropna(subset=['nombre', 'dorsal'])
+                        st.dataframe(df_excel[['nombre', 'dorsal']], hide_index=True)
+                        if st.button("✅ Importar jugadores", key=f"import_{equipo_id}"):
+                            count = 0
+                            for _, row in df_excel.iterrows():
+                                agregar_jugador(str(row['nombre']).strip(), int(row['dorsal']), equipo_id)
+                                count += 1
+                            st.success(f"✅ {count} jugadores importados correctamente")
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"Error al leer el Excel: {e}")
 
             # Mostrar roster actual
             jugadores = listar_jugadores(equipo_id)
@@ -220,6 +247,7 @@ elif pagina == "🎮 Mesa de Control":
         with col_ctrl2:
             if partido['estado'] == 'En curso':
                 if st.button("⏹️ Finalizar Partido", type="secondary"):
+                    sacar_todos_de_cancha(partido_id, time.time())
                     actualizar_estado_partido(partido_id, "Finalizado")
                     st.rerun()
         with col_ctrl3:
@@ -300,24 +328,84 @@ elif pagina == "🎮 Mesa de Control":
                     st.warning("Sin jugadores cargados.")
                     continue
 
+                en_cancha_ids = obtener_en_cancha(partido_id, equipo_id)
+
                 # Obtener stats actuales para mostrar faltas
                 stats = obtener_stats_partido(partido_id)
                 stats_dict = {s['jugador_id']: s for s in stats}
 
+                # --- Gestión de Titulares ---
+                st.markdown("#### 🏀 Gestión de Cancha")
+                jugadores_fuera = [j for j in jugadores if j['id'] not in en_cancha_ids]
+                jugadores_dentro = [j for j in jugadores if j['id'] in en_cancha_ids]
+
+                # Mostrar quiénes están en cancha
+                if jugadores_dentro:
+                    cancha_names = ", ".join([f"#{j['dorsal']} {j['nombre']}" for j in jugadores_dentro])
+                    st.success(f"**En cancha ({len(jugadores_dentro)}):** {cancha_names}")
+                else:
+                    st.info("No hay jugadores en cancha. Seleccioná los 5 titulares.")
+
+                # Botones para meter jugadores
+                if jugadores_fuera and len(en_cancha_ids) < 5:
+                    cols_in = st.columns(min(len(jugadores_fuera), 5))
+                    for i, jug in enumerate(jugadores_fuera[:5]):
+                        with cols_in[i]:
+                            if st.button(f"⬆️ #{jug['dorsal']}", key=f"in_{partido_id}_{equipo_id}_{jug['id']}",
+                                         help=f"Meter a {jug['nombre']}"):
+                                ingresar_jugador_cancha(partido_id, jug['id'], time.time())
+                                st.rerun()
+                    # Si hay más de 5 fuera, mostrar los restantes
+                    if len(jugadores_fuera) > 5:
+                        cols_in2 = st.columns(min(len(jugadores_fuera) - 5, 5))
+                        for i, jug in enumerate(jugadores_fuera[5:10]):
+                            with cols_in2[i]:
+                                if st.button(f"⬆️ #{jug['dorsal']}", key=f"in2_{partido_id}_{equipo_id}_{jug['id']}",
+                                             help=f"Meter a {jug['nombre']}"):
+                                    ingresar_jugador_cancha(partido_id, jug['id'], time.time())
+                                    st.rerun()
+
+                # Botones para sacar jugadores (cambio)
+                if jugadores_dentro:
+                    st.markdown("**Sacar del juego:**")
+                    cols_out = st.columns(min(len(jugadores_dentro), 5))
+                    for i, jug in enumerate(jugadores_dentro):
+                        with cols_out[i]:
+                            if st.button(f"⬇️ #{jug['dorsal']}", key=f"out_{partido_id}_{equipo_id}_{jug['id']}",
+                                         help=f"Sacar a {jug['nombre']}"):
+                                sacar_jugador_cancha(partido_id, jug['id'], time.time())
+                                st.rerun()
+
+                st.markdown("---")
+
+                # --- Roster completo con stats y tiempo ---
+                st.markdown("#### 📊 Roster y Estadísticas")
                 for jug in jugadores:
                     jug_stats = stats_dict.get(jug['id'], {})
                     faltas = jug_stats.get('faltas', 0) if isinstance(jug_stats, dict) else 0
                     pts = jug_stats.get('pts', 0) if isinstance(jug_stats, dict) else 0
 
-                    falta_color = "🔴" if faltas >= 5 else ""
-                    st.markdown(f"**#{jug['dorsal']} {jug['nombre']}** — {pts} pts — Faltas: {faltas} {falta_color}")
+                    # Tiempo de juego
+                    tiempo_seg = obtener_tiempo_total(partido_id, jug['id'])
+                    t_min = int(tiempo_seg // 60)
+                    t_sec = int(tiempo_seg % 60)
 
-                    cols = st.columns(len(ACCIONES))
-                    for i, (label, tipo, valor) in enumerate(ACCIONES):
-                        with cols[i]:
-                            if st.button(label, key=f"act_{partido_id}_{jug['id']}_{tipo}"):
-                                registrar_evento(partido_id, jug['id'], tipo, valor, st.session_state.cuarto_actual)
-                                st.rerun()
+                    en_cancha = "🟢" if jug['id'] in en_cancha_ids else "⚪"
+                    falta_color = "🔴" if faltas >= 5 else ""
+                    st.markdown(
+                        f"{en_cancha} **#{jug['dorsal']} {jug['nombre']}** — "
+                        f"{pts} pts — Faltas: {faltas} {falta_color} — "
+                        f"⏱️ {t_min:02d}:{t_sec:02d}"
+                    )
+
+                    # Solo mostrar botones de acción para jugadores EN CANCHA
+                    if jug['id'] in en_cancha_ids:
+                        cols = st.columns(len(ACCIONES))
+                        for i, (label, tipo, valor) in enumerate(ACCIONES):
+                            with cols[i]:
+                                if st.button(label, key=f"act_{partido_id}_{jug['id']}_{tipo}"):
+                                    registrar_evento(partido_id, jug['id'], tipo, valor, st.session_state.cuarto_actual)
+                                    st.rerun()
                 st.markdown("---")
 
         # --- Log de Eventos ---
