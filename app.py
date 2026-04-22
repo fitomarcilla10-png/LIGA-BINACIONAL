@@ -65,11 +65,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Botón al panel de admin (usando st.button en lugar de link HTML)
+# Botón al panel de admin (usando st.switch_page correctamente)
 col1, col2, col3 = st.columns([1, 1, 1])
 with col2:
     if st.button("🔐 Panel de Administración", type="primary", use_container_width=True):
-        st.switch_page("admin.py")
+        st.switch_page("pages/admin.py")
 
 st.markdown('<p class="main-header">🏀 Torneos de Basket</p>', unsafe_allow_html=True)
 
