@@ -8,9 +8,16 @@ from db import (
     init_db, listar_torneos, listar_equipos, listar_partidos, obtener_partido,
     obtener_stats_partido, obtener_puntos_equipo, obtener_cuartos_jugados,
     listar_jugadores, obtener_puntaje_cuartos, listar_categorias,
+    obtener_ultimos_eventos, obtener_tiempo_total,
 )
 
 st.set_page_config(page_title="Torneos de Basket", page_icon="🏀", layout="wide")
+
+# Función para formatear tiempo de juego
+def formatear_tiempo(segundos):
+    mins = int(segundos // 60)
+    secs = int(segundos % 60)
+    return f"{mins:02d}:{secs:02d}"
 
 # Inicializar BD
 init_db()
@@ -237,7 +244,54 @@ with tab_partidos:
         with col_marc3:
             st.markdown(f"<h2 class='team-visit'>{partido['visitante_nombre']}</h2>", unsafe_allow_html=True)
         
-        # Si está finalizado, mostrar estadísticas completas
+        # ═══ ESTADÍSTICAS EN VIVO (para partidos en curso) ═══
+        if partido['estado'] == 'En curso':
+            st.markdown("---")
+            st.markdown('<p class="sub-header">🔴 Estadísticas en Vivo</p>', unsafe_allow_html=True)
+            
+            stats = obtener_stats_partido(partido_id)
+            
+            # Box Score en vivo
+            col_box1, col_box2 = st.columns(2)
+            
+            for col_box, (equipo_id, equipo_nombre, es_local) in zip(
+                [col_box1, col_box2],
+                [(partido['equipo_local_id'], partido['local_nombre'], True),
+                 (partido['equipo_visitante_id'], partido['visitante_nombre'], False)]
+            ):
+                with col_box:
+                    color_class = "team-local" if es_local else "team-visit"
+                    st.markdown(f"<h4 class='{color_class}'>{equipo_nombre}</h4>", unsafe_allow_html=True)
+                    
+                    equipo_stats = [s for s in stats if s.get('equipo_id') == equipo_id]
+                    if equipo_stats:
+                        df = pd.DataFrame(equipo_stats)
+                        df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
+                        df['reb_tot'] = df['reb_of'] + df['reb_def']
+                        df['tiempo_fmt'] = df['jugador_id'].apply(lambda jid: formatear_tiempo(obtener_tiempo_total(partido_id, jid)))
+                        df = df[['dorsal', 'nombre', 'pts', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj', 'tiempo_fmt']]
+                        df.columns = ['#', 'Jugador', 'PTS', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ', '⏱️']
+                        
+                        st.dataframe(df, hide_index=True, use_container_width=True, height=250)
+                        
+                        # Totales del equipo
+                        totales = df[['PTS', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT']].sum()
+                        st.markdown(f"**Totales:** PTS {totales['PTS']} | REB {totales['REB']} | AST {totales['AST']} | REC {totales['REC']}")
+                    else:
+                        st.info("Sin estadísticas registradas.")
+            
+            # Log de Eventos en vivo
+            st.markdown("---")
+            st.markdown('<p class="sub-header">📝 Log de Eventos (últimos 10)</p>', unsafe_allow_html=True)
+            
+            eventos = obtener_ultimos_eventos(partido_id, 10)
+            if eventos:
+                for ev in eventos:
+                    st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']})")
+            else:
+                st.info("Sin eventos registrados.")
+        
+        # ═══ ESTADÍSTICAS FINALES (para partidos terminados) ═══
         if partido['estado'] == 'Finalizado':
             st.markdown("---")
             st.markdown('<p class="sub-header">⭐ Highlights del Partido</p>', unsafe_allow_html=True)
@@ -286,9 +340,9 @@ with tab_partidos:
                     </div>
                     """, unsafe_allow_html=True)
             
-            # Box Score
+            # Box Score final
             st.markdown("---")
-            st.markdown('<p class="sub-header">📋 Box Score</p>', unsafe_allow_html=True)
+            st.markdown('<p class="sub-header">📋 Box Score Final</p>', unsafe_allow_html=True)
             
             col_box1, col_box2 = st.columns(2)
             
@@ -306,8 +360,9 @@ with tab_partidos:
                         df = pd.DataFrame(equipo_stats)
                         df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
                         df['reb_tot'] = df['reb_of'] + df['reb_def']
-                        df = df[['dorsal', 'nombre', 'pts', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj']]
-                        df.columns = ['#', 'Jugador', 'PTS', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ']
+                        df['tiempo_fmt'] = df['jugador_id'].apply(lambda jid: formatear_tiempo(obtener_tiempo_total(partido_id, jid)))
+                        df = df[['dorsal', 'nombre', 'pts', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj', 'tiempo_fmt']]
+                        df.columns = ['#', 'Jugador', 'PTS', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ', '⏱️']
                         
                         # Destacar máximo anotador del equipo
                         def highlight_max_pts(row):

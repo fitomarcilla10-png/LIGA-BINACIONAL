@@ -451,22 +451,42 @@ elif pagina == "🎮 Mesa de Control":
             cuarto = st.selectbox("Cuarto", [1, 2, 3, 4], index=st.session_state.cuarto_actual - 1, key="sel_cuarto")
             st.session_state.cuarto_actual = cuarto
 
-        # Cronómetro
+        # Cronómetro de 10 minutos por cuarto
         st.markdown("---")
+        TIEMPO_CUARTO = 600  # 10 minutos en segundos
+        
         if "crono_start" not in st.session_state:
             st.session_state.crono_start = None
             st.session_state.crono_elapsed = 0
             st.session_state.crono_running = False
 
-        col_t1, col_t2, col_t3, col_t4 = st.columns([2, 1, 1, 1])
+        col_t1, col_t2, col_t3, col_t4, col_t5 = st.columns([2, 1, 1, 1, 1])
         with col_t1:
             if st.session_state.crono_running and st.session_state.crono_start:
                 elapsed = st.session_state.crono_elapsed + (time.time() - st.session_state.crono_start)
             else:
                 elapsed = st.session_state.crono_elapsed
-            mins = int(elapsed // 60)
-            secs = int(elapsed % 60)
-            st.markdown(f"### ⏱️ {mins:02d}:{secs:02d}")
+            
+            # Calcular tiempo restante
+            tiempo_restante = max(0, TIEMPO_CUARTO - elapsed)
+            mins = int(tiempo_restante // 60)
+            secs = int(tiempo_restante % 60)
+            
+            # Cambiar color cuando queda poco tiempo
+            if tiempo_restante <= 60:
+                color = "🔴"
+            elif tiempo_restante <= 120:
+                color = "🟡"
+            else:
+                color = "🟢"
+            
+            st.markdown(f"### {color} ⏱️ {mins:02d}:{secs:02d}")
+            
+            # Mostrar tiempo transcurrido también
+            mins_trans = int(elapsed // 60)
+            secs_trans = int(elapsed % 60)
+            st.caption(f"Transcurrido: {mins_trans:02d}:{secs_trans:02d}")
+            
         with col_t2:
             if st.button("▶️ Play"):
                 if not st.session_state.crono_running:
@@ -481,6 +501,21 @@ elif pagina == "🎮 Mesa de Control":
                     st.rerun()
         with col_t4:
             if st.button("🔄 Reset"):
+                st.session_state.crono_start = None
+                st.session_state.crono_elapsed = 0
+                st.session_state.crono_running = False
+                st.rerun()
+        with col_t5:
+            if st.button("⏭️ Fin Cuarto"):
+                # Guardar puntaje del cuarto actual
+                guardar_puntaje_cuarto(partido_id, partido['equipo_local_id'], st.session_state.cuarto_actual, 
+                                       obtener_puntos_equipo(partido_id, partido['equipo_local_id']))
+                guardar_puntaje_cuarto(partido_id, partido['equipo_visitante_id'], st.session_state.cuarto_actual,
+                                       obtener_puntos_equipo(partido_id, partido['equipo_visitante_id']))
+                # Avanzar al siguiente cuarto
+                if st.session_state.cuarto_actual < 4:
+                    st.session_state.cuarto_actual += 1
+                # Resetear cronómetro
                 st.session_state.crono_start = None
                 st.session_state.crono_elapsed = 0
                 st.session_state.crono_running = False
