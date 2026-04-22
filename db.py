@@ -17,13 +17,37 @@ def get_connection():
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+    # Tabla de torneos (antes de equipos por FK)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS torneos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            fecha_inicio TEXT,
+            fecha_fin TEXT,
+            activo INTEGER DEFAULT 1
+        )
+    """)
+    # Tabla de categorías dinámicas
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS categorias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE
+        )
+    """)
+    # Insertar categorías por defecto si la tabla está vacía
+    cats_exist = c.execute("SELECT COUNT(*) as n FROM categorias").fetchone()
+    if cats_exist['n'] == 0:
+        for cat in ['U13', 'U15', 'U17', 'Primera']:
+            c.execute("INSERT INTO categorias (nombre) VALUES (?)", (cat,))
     c.execute("""
         CREATE TABLE IF NOT EXISTS equipos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL,
             rama TEXT NOT NULL CHECK(rama IN ('Masculino','Femenino')),
             categoria TEXT NOT NULL,
-            logo_url TEXT
+            logo_url TEXT,
+            torneo_id INTEGER,
+            FOREIGN KEY (torneo_id) REFERENCES torneos(id)
         )
     """)
     c.execute("""
@@ -121,28 +145,6 @@ def init_db():
         pwd_hash = hashlib.sha256("admin123".encode()).hexdigest()
         c.execute("INSERT INTO usuarios (username, password, nombre, rol) VALUES (?,?,?,?)",
                   ("admin", pwd_hash, "Administrador", "admin"))
-    # Tabla de torneos
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS torneos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            fecha_inicio TEXT,
-            fecha_fin TEXT,
-            activo INTEGER DEFAULT 1
-        )
-    """)
-    # Tabla de categorías dinámicas
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS categorias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL UNIQUE
-        )
-    """)
-    # Insertar categorías por defecto si la tabla está vacía
-    cats_exist = c.execute("SELECT COUNT(*) as n FROM categorias").fetchone()
-    if cats_exist['n'] == 0:
-        for cat in ['U13', 'U15', 'U17', 'Primera']:
-            c.execute("INSERT INTO categorias (nombre) VALUES (?)", (cat,))
     conn.commit()
     conn.close()
 
@@ -244,12 +246,12 @@ def obtener_cuartos_jugados(partido_id, jugador_id):
 
 
 # --- EQUIPOS ---
-def agregar_equipo(nombre, rama, categoria, logo_url=None):
+def agregar_equipo(nombre, rama, categoria, logo_url=None, torneo_id=None):
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO equipos (nombre, rama, categoria, logo_url) VALUES (?,?,?,?)",
-        (nombre, rama, categoria, logo_url),
+        "INSERT INTO equipos (nombre, rama, categoria, logo_url, torneo_id) VALUES (?,?,?,?,?)",
+        (nombre, rama, categoria, logo_url, torneo_id),
     )
     conn.commit()
     equipo_id = c.lastrowid
@@ -257,17 +259,25 @@ def agregar_equipo(nombre, rama, categoria, logo_url=None):
     return equipo_id
 
 
-def listar_equipos(rama=None, categoria=None):
+def listar_equipos(rama=None, categoria=None, torneo_id=None):
     conn = get_connection()
-    query = "SELECT * FROM equipos WHERE 1=1"
+    query = """
+        SELECT e.*, COALESCE(t.nombre, 'Sin torneo') as torneo_nombre
+        FROM equipos e
+        LEFT JOIN torneos t ON e.torneo_id = t.id
+        WHERE 1=1
+    """
     params = []
     if rama:
-        query += " AND rama = ?"
+        query += " AND e.rama = ?"
         params.append(rama)
     if categoria:
-        query += " AND categoria = ?"
+        query += " AND e.categoria = ?"
         params.append(categoria)
-    query += " ORDER BY nombre"
+    if torneo_id:
+        query += " AND e.torneo_id = ?"
+        params.append(torneo_id)
+    query += " ORDER BY e.nombre"
     rows = conn.execute(query, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
