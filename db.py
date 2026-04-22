@@ -127,6 +127,18 @@ def init_db():
             FOREIGN KEY (jugador_id) REFERENCES jugadores(id)
         )
     """)
+    # Tabla de tiempos muertos
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS tiempos_muertos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            partido_id INTEGER NOT NULL,
+            equipo_id INTEGER NOT NULL,
+            cuarto INTEGER NOT NULL,
+            timestamp TEXT,
+            FOREIGN KEY (partido_id) REFERENCES partidos(id),
+            FOREIGN KEY (equipo_id) REFERENCES equipos(id)
+        )
+    """)
     # Tabla de usuarios
     c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
@@ -596,3 +608,37 @@ def eliminar_categoria(cat_id):
     conn.execute("DELETE FROM categorias WHERE id = ?", (cat_id,))
     conn.commit()
     conn.close()
+
+
+# --- TIEMPOS MUERTOS ---
+def registrar_tiempo_muerto(partido_id, equipo_id, cuarto):
+    import datetime
+    conn = get_connection()
+    conn.execute(
+        "INSERT INTO tiempos_muertos (partido_id, equipo_id, cuarto, timestamp) VALUES (?,?,?,?)",
+        (partido_id, equipo_id, cuarto, datetime.datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+
+def contar_tiempos_muertos(partido_id, equipo_id, cuarto):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COUNT(*) as total FROM tiempos_muertos WHERE partido_id=? AND equipo_id=? AND cuarto=?",
+        (partido_id, equipo_id, cuarto)
+    ).fetchone()
+    conn.close()
+    return row['total'] if row else 0
+
+
+def obtener_tiempos_muertos(partido_id):
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM tiempos_muertos WHERE partido_id=? ORDER BY timestamp DESC",
+        (partido_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+ 
+ 

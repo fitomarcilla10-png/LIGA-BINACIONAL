@@ -25,6 +25,7 @@ from db import (
     verificar_usuario, crear_usuario, listar_usuarios, eliminar_usuario,
     crear_torneo, listar_torneos, activar_desactivar_torneo, eliminar_torneo,
     listar_categorias, agregar_categoria, eliminar_categoria,
+    registrar_tiempo_muerto, contar_tiempos_muertos, obtener_tiempos_muertos,
 )
 
 st.set_page_config(page_title="Admin | Torneos de Basket", page_icon="🔐", layout="wide")
@@ -451,9 +452,9 @@ elif pagina == "🎮 Mesa de Control":
             cuarto = st.selectbox("Cuarto", [1, 2, 3, 4], index=st.session_state.cuarto_actual - 1, key="sel_cuarto")
             st.session_state.cuarto_actual = cuarto
 
-        # Cronómetro de 10 minutos por cuarto
+        # Cronómetro de 10 mín por cuarto
         st.markdown("---")
-        TIEMPO_CUARTO = 600  # 10 minutos en segundos
+        TIEMPO_CUARTO = 600  # 10 mín en segundos
         
         if "crono_start" not in st.session_state:
             st.session_state.crono_start = None
@@ -538,6 +539,53 @@ elif pagina == "🎮 Mesa de Control":
                 st.image(partido['visitante_logo'], width=60)
             st.markdown(f"### {partido['visitante_nombre']}")
 
+        # ═══ TIEMPOS MUERTOS ═══
+        if partido['estado'] == 'En curso':
+            st.markdown("---")
+            st.markdown("#### ⏸️ Tiempos Muertos")
+            
+            cuarto_actual = st.session_state.cuarto_actual
+            
+            # Calcular límites según el cuarto
+            if cuarto_actual in [1, 2]:
+                max_tiempos = 2
+                periodo = "Q1-Q2"
+            else:
+                max_tiempos = 3
+                periodo = "Q3-Q4"
+            
+            col_tm1, col_tm2 = st.columns(2)
+            
+            with col_tm1:
+                st.markdown(f"**{partido['local_nombre']}**")
+                tm_local = contar_tiempos_muertos(partido_id, partido['equipo_local_id'], cuarto_actual)
+                tm_restantes_local = max_tiempos - tm_local
+                
+                if tm_restantes_local > 0:
+                    st.write(f"🟢 Usados: {tm_local}/{max_tiempos} ({periodo})")
+                    if st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_local_{partido_id}"):
+                        registrar_tiempo_muerto(partido_id, partido['equipo_local_id'], cuarto_actual)
+                        st.success(f"✅ Tiempo muerto registrado para {partido['local_nombre']}")
+                        st.rerun()
+                else:
+                    st.write(f"🔴 Usados: {tm_local}/{max_tiempos} - **SIN TIEMPOS**")
+                    st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_local_{partido_id}", disabled=True)
+            
+            with col_tm2:
+                st.markdown(f"**{partido['visitante_nombre']}**")
+                tm_visit = contar_tiempos_muertos(partido_id, partido['equipo_visitante_id'], cuarto_actual)
+                tm_restantes_visit = max_tiempos - tm_visit
+                
+                if tm_restantes_visit > 0:
+                    st.write(f"🟢 Usados: {tm_visit}/{max_tiempos} ({periodo})")
+                    if st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_visit_{partido_id}"):
+                        registrar_tiempo_muerto(partido_id, partido['equipo_visitante_id'], cuarto_actual)
+                        st.success(f"✅ Tiempo muerto registrado para {partido['visitante_nombre']}")
+                        st.rerun()
+                else:
+                    st.write(f"🔴 Usados: {tm_visit}/{max_tiempos} - **SIN TIEMPOS**")
+                    st.button("⏸️ Pedir Tiempo Muerto", key=f"tm_visit_{partido_id}", disabled=True)
+
         # --- Tableros de los dos equipos ---
         if partido['estado'] == 'En curso':
             ACCIONES = [
@@ -608,6 +656,18 @@ elif pagina == "🎮 Mesa de Control":
                         jug_sel = None
 
                 if jug_sel:
+                    # Obtener stats actuales del jugador para mostrar faltas
+                    stats_temp = obtener_stats_partido(partido_id)
+                    stats_dict_temp = {s['jugador_id']: s for s in stats_temp}
+                    jug_stats_temp = stats_dict_temp.get(jug_sel, {})
+                    faltas_actuales = jug_stats_temp.get('faltas', 0) if isinstance(jug_stats_temp, dict) else 0
+                    
+                    # Mostrar alerta de faltas si tiene 3 o más
+                    if faltas_actuales >= 4:
+                        st.error(f"⚠️ **ALERTA:** Este jugador tiene {faltas_actuales} faltas. Una más y queda eliminado!")
+                    elif faltas_actuales >= 3:
+                        st.warning(f"⚠️ **ATENCIÓN:** Este jugador tiene {faltas_actuales} faltas.")
+                    
                     # Fila 1: Puntos
                     row1 = st.columns(3)
                     for i, (label, tipo, valor) in enumerate(ACCIONES[:3]):
@@ -631,6 +691,15 @@ elif pagina == "🎮 Mesa de Control":
                             if st.button(f"⚠️ {label}", key=f"stat_{partido_id}_{jug_sel}_{tipo}",
                                          use_container_width=True):
                                 registrar_evento(partido_id, jug_sel, tipo, valor, st.session_state.cuarto_actual)
+                                # Alerta especial para faltas
+                                if tipo == "FLT":
+                                    nuevas_faltas = faltas_actuales + 1
+                                    if nuevas_faltas >= 5:
+                                        st.error(f"🚫 **JUGADOR ELIMINADO!** #{jug_stats_temp.get('dorsal', '?')} {jug_stats_temp.get('nombre', 'Jugador')} llegó a 5 faltas.")
+                                    elif nuevas_faltas == 4:
+                                        st.warning(f"⚠️ #{jug_stats_temp.get('dorsal', '?')} {jug_stats_temp.get('nombre', 'Jugador')} ahora tiene 4 faltas. ¡Cuidado!")
+                                    else:
+                                        st.info(f"📊 #{jug_stats_temp.get('dorsal', '?')} {jug_stats_temp.get('nombre', 'Jugador')} ahora tiene {nuevas_faltas} faltas.")
                                 st.rerun()
                 else:
                     st.markdown("#### 📊 Estadísticas")
