@@ -420,6 +420,21 @@ def obtener_ultimos_eventos(partido_id, limit=5):
     return [dict(r) for r in rows]
 
 
+def obtener_todos_eventos(partido_id):
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT e.*, j.nombre as jugador_nombre, j.dorsal,
+               eq.nombre as equipo_nombre
+        FROM eventos e
+        JOIN jugadores j ON e.jugador_id = j.id
+        JOIN equipos eq ON j.equipo_id = eq.id
+        WHERE e.partido_id = ?
+        ORDER BY e.id DESC
+    """, (partido_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def borrar_ultimo_evento(partido_id):
     conn = get_connection()
     last = conn.execute(
@@ -427,7 +442,7 @@ def borrar_ultimo_evento(partido_id):
         (partido_id,)
     ).fetchone()
     if last:
-        conn.execute("DELETE FROM eventos WHERE id = ?", (last["id"],))
+        conn.execute("DELETE FROM eventos WHERE id = ?", (last['id'],))
         conn.commit()
     conn.close()
 
@@ -478,7 +493,7 @@ def guardar_puntaje_cuarto(partido_id, equipo_id, cuarto, puntos):
         (partido_id, equipo_id, cuarto)
     ).fetchone()
     if existing:
-        conn.execute("UPDATE puntaje_cuartos SET puntos=? WHERE id=?", (puntos, existing["id"]))
+        conn.execute("UPDATE puntaje_cuartos SET puntos=? WHERE id=?", (puntos, existing['id']))
     else:
         conn.execute(
             "INSERT INTO puntaje_cuartos (partido_id, equipo_id, cuarto, puntos) VALUES (?,?,?,?)",
@@ -640,5 +655,3 @@ def obtener_tiempos_muertos(partido_id):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
- 
- 

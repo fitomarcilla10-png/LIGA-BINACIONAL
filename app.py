@@ -54,21 +54,6 @@ st.markdown("""
     }
     .team-local { color: #1f77b4; font-weight: bold; }
     .team-visit { color: #ff7f0e; font-weight: bold; }
-    .admin-link {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        background: #1f77b4;
-        color: white;
-        padding: 8px 15px;
-        border-radius: 5px;
-        text-decoration: none;
-        font-size: 0.9rem;
-        z-index: 1000;
-    }
-    .admin-link:hover {
-        background: #145a8a;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -282,9 +267,22 @@ with tab_partidos:
             
             # Log de Eventos en vivo
             st.markdown("---")
-            st.markdown('<p class="sub-header">📝 Log de Eventos (últimos 10)</p>', unsafe_allow_html=True)
+            st.markdown('<p class="sub-header">📝 Log de Eventos</p>', unsafe_allow_html=True)
             
-            eventos = obtener_ultimos_eventos(partido_id, 10)
+            # Selector para ver últimos 5, 10 o todos los eventos
+            col_ev1, col_ev2 = st.columns([1, 3])
+            with col_ev1:
+                cantidad_eventos = st.selectbox("Mostrar", ["Últimos 5", "Últimos 10", "Todos"], key="cant_ev_vivo")
+            
+            if cantidad_eventos == "Últimos 5":
+                eventos = obtener_ultimos_eventos(partido_id, 5)
+            elif cantidad_eventos == "Últimos 10":
+                eventos = obtener_ultimos_eventos(partido_id, 10)
+            else:
+                # Importar función para obtener todos los eventos
+                from db import obtener_todos_eventos
+                eventos = obtener_todos_eventos(partido_id)
+            
             if eventos:
                 for ev in eventos:
                     st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']})")
