@@ -8,7 +8,7 @@ from db import (
     init_db, listar_torneos, listar_equipos, listar_partidos, obtener_partido,
     obtener_stats_partido, obtener_puntos_equipo, obtener_cuartos_jugados,
     listar_jugadores, obtener_puntaje_cuartos, listar_categorias,
-    obtener_ultimos_eventos, obtener_tiempo_total,
+    obtener_ultimos_eventos, obtener_tiempo_total
 )
 
 st.set_page_config(page_title="Torneos de Basket", page_icon="🏀", layout="wide")
