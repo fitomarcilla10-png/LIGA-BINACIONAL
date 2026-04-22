@@ -65,8 +65,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Link al panel de admin
-st.markdown('<a href="/admin" target="_self" class="admin-link">🔐 Panel Admin</a>', unsafe_allow_html=True)
+# Link al panel de admin (centrado arriba)
+st.markdown("""
+<div style="text-align: center; margin-bottom: 20px;">
+    <a href="/admin" target="_self" 
+       style="background: #1f77b4; color: white; padding: 10px 25px; 
+              border-radius: 8px; text-decoration: none; font-size: 1rem;
+              display: inline-block;">
+        🔐 Panel de Administración
+    </a>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown('<p class="main-header">🏀 Torneos de Basket</p>', unsafe_allow_html=True)
 
