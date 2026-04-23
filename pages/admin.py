@@ -512,6 +512,67 @@ if pagina == "🎮 Mesa de Control":
 
         # Log de Eventos
         st.markdown("---")
+
+        # ═══ GESTIÓN DE CANCHA (meter/sacar jugadores) ═══
+        if partido['estado'] == 'En curso':
+            st.markdown("### 🔄 Gestión de Planteles")
+            col_cancha_loc, col_cancha_vis = st.columns(2)
+
+            local_id = partido['equipo_local_id']
+            visit_id = partido['equipo_visitante_id']
+            en_cancha_local = obtener_en_cancha(partido_id, local_id)
+            en_cancha_visit = obtener_en_cancha(partido_id, visit_id)
+            jug_local = listar_jugadores(local_id)
+            jug_visit = listar_jugadores(visit_id)
+
+            for col_cancha, (equipo_id, equipo_nombre, jug_equipo, en_cancha_ids) in zip(
+                [col_cancha_loc, col_cancha_vis],
+                [(local_id, partido['local_nombre'], jug_local, en_cancha_local),
+                 (visit_id, partido['visitante_nombre'], jug_visit, en_cancha_visit)]
+            ):
+                with col_cancha:
+                    jugadores_dentro = [j for j in jug_equipo if j['id'] in en_cancha_ids]
+
+                    with st.expander(f"🔄 {equipo_nombre} — En cancha: {len(jugadores_dentro)}/5", expanded=len(jugadores_dentro) == 0):
+                        for jug in jug_equipo:
+                            c1, c2 = st.columns([3, 1])
+                            en = "🟢" if jug['id'] in en_cancha_ids else "⚪"
+                            c1.write(f"{en} #{jug['dorsal']} {jug['nombre']}")
+                            if jug['id'] in en_cancha_ids:
+                                if c2.button("⬇️ Sacar", key=f"out_{partido_id}_{equipo_id}_{jug['id']}"):
+                                    sacar_jugador_cancha(partido_id, jug['id'], time.time())
+                                    st.rerun()
+                            else:
+                                if len(en_cancha_ids) < 5:
+                                    if c2.button("⬆️ Meter", key=f"in_{partido_id}_{equipo_id}_{jug['id']}"):
+                                        ingresar_jugador_cancha(partido_id, jug['id'], time.time())
+                                        st.rerun()
+                                else:
+                                    c2.write("🔒 Lleno")
+
+                    # Tabla de stats del equipo
+                    stats_eq = obtener_stats_partido(partido_id)
+                    stats_dict_eq = {s['jugador_id']: s for s in stats_eq}
+                    tabla_data = []
+                    for jug in jug_equipo:
+                        s = stats_dict_eq.get(jug['id'], {})
+                        faltas = s.get('faltas', 0) if isinstance(s, dict) else 0
+                        tiempo_seg = obtener_tiempo_total(partido_id, jug['id'])
+                        t_min = int(tiempo_seg // 60)
+                        t_sec = int(tiempo_seg % 60)
+                        en = "🟢" if jug['id'] in en_cancha_ids else "⚪"
+                        tabla_data.append({
+                            '': en,
+                            '#': jug['dorsal'],
+                            'Jugador': jug['nombre'],
+                            'PTS': s.get('pts', 0) if isinstance(s, dict) else 0,
+                            'FLT': f"{'🔴' if faltas >= 5 else ''}{faltas}",
+                            'CJ': obtener_cuartos_jugados(partido_id, jug['id']),
+                            '⏱️': f"{t_min:02d}:{t_sec:02d}",
+                        })
+                    st.dataframe(pd.DataFrame(tabla_data), hide_index=True, use_container_width=True, height=220)
+
+        st.markdown("---")
         st.subheader("📝 Log de Eventos")
         
         col_ev1, col_ev2 = st.columns([1, 3])
