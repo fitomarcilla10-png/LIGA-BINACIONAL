@@ -254,8 +254,8 @@ with tab_partidos:
                         df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
                         df['reb_tot'] = df['reb_of'] + df['reb_def']
                         df['tiempo_fmt'] = df['jugador_id'].apply(lambda jid: formatear_tiempo(obtener_tiempo_total(partido_id, jid)))
-                        df = df[['dorsal', 'nombre', 'pts', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj', 'tiempo_fmt']]
-                        df.columns = ['#', 'Jugador', 'PTS', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ', '⏱️']
+                        df = df[['dorsal', 'nombre', 'pts', 'faltas', 'cj', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'tiempo_fmt']]
+                        df.columns = ['#', 'Jugador', 'PTS', 'FLT', 'CJ', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', '⏱️']
                         
                         st.dataframe(df, hide_index=True, use_container_width=True, height=250)
                         
@@ -359,8 +359,8 @@ with tab_partidos:
                         df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
                         df['reb_tot'] = df['reb_of'] + df['reb_def']
                         df['tiempo_fmt'] = df['jugador_id'].apply(lambda jid: formatear_tiempo(obtener_tiempo_total(partido_id, jid)))
-                        df = df[['dorsal', 'nombre', 'pts', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj', 'tiempo_fmt']]
-                        df.columns = ['#', 'Jugador', 'PTS', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ', '⏱️']
+                        df = df[['dorsal', 'nombre', 'pts', 'faltas', 'cj', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'tiempo_fmt']]
+                        df.columns = ['#', 'Jugador', 'PTS', 'FLT', 'CJ', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', '⏱️']
                         
                         # Destacar máximo anotador del equipo
                         def highlight_max_pts(row):
