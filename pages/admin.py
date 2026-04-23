@@ -1034,8 +1034,11 @@ elif pagina == "📄 Exportar":
             if equipo_stats:
                 df = pd.DataFrame(equipo_stats)
                 df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
-                df = df[['dorsal', 'nombre', 'pts', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj']]
-                df.columns = ['#', 'Jugador', 'PTS', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ']
+                df['1PT'] = df.apply(lambda r: f"{r['t1c']}/{r['t1c']+r['t1e']}", axis=1)
+                df['2PT'] = df.apply(lambda r: f"{r['t2c']}/{r['t2c']+r['t2e']}", axis=1)
+                df['3PT'] = df.apply(lambda r: f"{r['t3c']}/{r['t3c']+r['t3e']}", axis=1)
+                df = df[['dorsal', 'nombre', 'pts', '1PT', '2PT', '3PT', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'faltas', 'cj']]
+                df.columns = ['#', 'Jugador', 'PTS', '1PT', '2PT', '3PT', 'RO', 'RD', 'AST', 'REC', 'PER', 'FLT', 'CJ']
                 st.dataframe(df, hide_index=True, use_container_width=True)
 
         # Botón PDF
@@ -1075,15 +1078,19 @@ elif pagina == "📄 Exportar":
                 pdf.set_font("Helvetica", "B", 11)
                 pdf.cell(0, 8, equipo_nombre, ln=True)
                 pdf.set_font("Helvetica", "", 8)
-                headers = ["#", "Jugador", "PTS", "RO", "RD", "AST", "REC", "PER", "FLT", "CJ"]
-                widths = [10, 35, 14, 14, 14, 14, 14, 14, 14, 12]
+                headers = ["#", "Jugador", "PTS", "1PT", "2PT", "3PT", "RO", "RD", "AST", "REC", "PER", "FLT", "CJ"]
+                widths = [8, 30, 12, 14, 14, 14, 12, 12, 12, 12, 12, 12, 10]
                 for i, h in enumerate(headers):
                     pdf.cell(widths[i], 6, h, 1, 0, "C")
                 pdf.ln()
                 equipo_stats = [s for s in stats if s['equipo_id'] == equipo_id]
                 for s in equipo_stats:
                     cj = obtener_cuartos_jugados(partido_id, s['jugador_id'])
+                    t1 = f"{s['t1c']}/{s['t1c']+s['t1e']}"
+                    t2 = f"{s['t2c']}/{s['t2c']+s['t2e']}"
+                    t3 = f"{s['t3c']}/{s['t3c']+s['t3e']}"
                     vals = [str(s['dorsal']), s['nombre'][:16], str(s['pts']),
+                            t1, t2, t3,
                             str(s['reb_of']), str(s['reb_def']), str(s['asistencias']),
                             str(s['recuperos']), str(s['perdidas']), str(s['faltas']), str(cj)]
                     for i, v in enumerate(vals):

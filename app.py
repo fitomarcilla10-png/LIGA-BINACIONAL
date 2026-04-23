@@ -254,8 +254,11 @@ with tab_partidos:
                         df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
                         df['reb_tot'] = df['reb_of'] + df['reb_def']
                         df['tiempo_fmt'] = df['jugador_id'].apply(lambda jid: formatear_tiempo(obtener_tiempo_total(partido_id, jid)))
-                        df = df[['dorsal', 'nombre', 'pts', 'faltas', 'cj', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'tiempo_fmt']]
-                        df.columns = ['#', 'Jugador', 'PTS', 'FLT', 'CJ', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', '⏱️']
+                        df['1PT'] = df.apply(lambda r: f"{r['t1c']}/{r['t1c']+r['t1e']}", axis=1)
+                        df['2PT'] = df.apply(lambda r: f"{r['t2c']}/{r['t2c']+r['t2e']}", axis=1)
+                        df['3PT'] = df.apply(lambda r: f"{r['t3c']}/{r['t3c']+r['t3e']}", axis=1)
+                        df = df[['dorsal', 'nombre', 'pts', '1PT', '2PT', '3PT', 'faltas', 'cj', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'tiempo_fmt']]
+                        df.columns = ['#', 'Jugador', 'PTS', '1PT', '2PT', '3PT', 'FLT', 'CJ', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', '⏱️']
                         
                         st.dataframe(df, hide_index=True, use_container_width=True, height=250)
                         
@@ -359,8 +362,11 @@ with tab_partidos:
                         df['cj'] = df['jugador_id'].apply(lambda jid: obtener_cuartos_jugados(partido_id, jid))
                         df['reb_tot'] = df['reb_of'] + df['reb_def']
                         df['tiempo_fmt'] = df['jugador_id'].apply(lambda jid: formatear_tiempo(obtener_tiempo_total(partido_id, jid)))
-                        df = df[['dorsal', 'nombre', 'pts', 'faltas', 'cj', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'tiempo_fmt']]
-                        df.columns = ['#', 'Jugador', 'PTS', 'FLT', 'CJ', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', '⏱️']
+                        df['1PT'] = df.apply(lambda r: f"{r['t1c']}/{r['t1c']+r['t1e']}", axis=1)
+                        df['2PT'] = df.apply(lambda r: f"{r['t2c']}/{r['t2c']+r['t2e']}", axis=1)
+                        df['3PT'] = df.apply(lambda r: f"{r['t3c']}/{r['t3c']+r['t3e']}", axis=1)
+                        df = df[['dorsal', 'nombre', 'pts', '1PT', '2PT', '3PT', 'faltas', 'cj', 'reb_tot', 'reb_of', 'reb_def', 'asistencias', 'recuperos', 'perdidas', 'tiempo_fmt']]
+                        df.columns = ['#', 'Jugador', 'PTS', '1PT', '2PT', '3PT', 'FLT', 'CJ', 'REB', 'RO', 'RD', 'AST', 'REC', 'PER', '⏱️']
                         
                         # Destacar máximo anotador del equipo
                         def highlight_max_pts(row):

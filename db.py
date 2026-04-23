@@ -453,6 +453,12 @@ def obtener_stats_partido(partido_id):
     rows = conn.execute("""
         SELECT j.id as jugador_id, j.nombre, j.dorsal, j.equipo_id,
             COALESCE(SUM(CASE WHEN e.tipo IN ('+1','+2','+3') THEN e.valor ELSE 0 END), 0) as pts,
+            COALESCE(SUM(CASE WHEN e.tipo = '+1' THEN 1 ELSE 0 END), 0) as t1c,
+            COALESCE(SUM(CASE WHEN e.tipo = 'T1E' THEN 1 ELSE 0 END), 0) as t1e,
+            COALESCE(SUM(CASE WHEN e.tipo = '+2' THEN 1 ELSE 0 END), 0) as t2c,
+            COALESCE(SUM(CASE WHEN e.tipo = 'T2E' THEN 1 ELSE 0 END), 0) as t2e,
+            COALESCE(SUM(CASE WHEN e.tipo = '+3' THEN 1 ELSE 0 END), 0) as t3c,
+            COALESCE(SUM(CASE WHEN e.tipo = 'T3E' THEN 1 ELSE 0 END), 0) as t3e,
             COALESCE(SUM(CASE WHEN e.tipo = 'Rebote Ofensivo' THEN 1 ELSE 0 END), 0) as reb_of,
             COALESCE(SUM(CASE WHEN e.tipo = 'Rebote Defensivo' THEN 1 ELSE 0 END), 0) as reb_def,
             COALESCE(SUM(CASE WHEN e.tipo = 'Asistencia' THEN 1 ELSE 0 END), 0) as asistencias,
