@@ -350,7 +350,7 @@ if pagina == "🎮 Mesa de Control":
                     st.markdown("**En Cancha:**")
                     for j in jug_local_cancha:
                         is_selected = st.session_state.jug_seleccionado == j['id']
-                        if st.button(f"#{j['dorsal']} {j['nombre']}", 
+                        if st.button(f"#{j['dorsal']}", 
                                    key=f"loc_{partido_id}_{j['id']}",
                                    use_container_width=True,
                                    type="primary" if is_selected else "secondary"):
@@ -373,7 +373,7 @@ if pagina == "🎮 Mesa de Control":
                     st.markdown("**En Cancha:**")
                     for j in jug_visit_cancha:
                         is_selected = st.session_state.jug_seleccionado == j['id']
-                        if st.button(f"#{j['dorsal']} {j['nombre']}", 
+                        if st.button(f"#{j['dorsal']}", 
                                    key=f"vis_{partido_id}_{j['id']}",
                                    use_container_width=True,
                                    type="primary" if is_selected else "secondary"):
@@ -534,7 +534,9 @@ if pagina == "🎮 Mesa de Control":
                     jugadores_dentro = [j for j in jug_equipo if j['id'] in en_cancha_ids]
 
                     with st.expander(f"🔄 {equipo_nombre} — En cancha: {len(jugadores_dentro)}/5", expanded=len(jugadores_dentro) == 0):
-                        for jug in jug_equipo:
+                        # Ordenar: primero los que están en cancha (titulares), después suplentes
+                        jug_ordenados = sorted(jug_equipo, key=lambda j: (0 if j['id'] in en_cancha_ids else 1, j['dorsal']))
+                        for jug in jug_ordenados:
                             c1, c2 = st.columns([3, 1])
                             en = "🟢" if jug['id'] in en_cancha_ids else "⚪"
                             c1.write(f"{en} #{jug['dorsal']} {jug['nombre']}")
