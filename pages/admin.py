@@ -426,12 +426,6 @@ if pagina == "🎮 Mesa de Control":
                             st.warning("⚠️ **3 faltas** - Cuidado")
                         
                         # BOTONES DE PUNTOS ACERTADOS
-                        st.markdown("""
-                        <div style="background: #d4edda; padding: 10px; border-radius: 10px; margin: 15px 0; text-align: center;">
-                            <h4 style="margin: 0; color: #155724;">✅ LANZAMIENTOS ACERTADOS</h4>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
                         col_p1, col_p2, col_p3 = st.columns(3)
                         with col_p1:
                             if st.button("✅ +1 PUNTO", key=f"p1_{partido_id}_{jug_sel}", use_container_width=True):
@@ -447,12 +441,6 @@ if pagina == "🎮 Mesa de Control":
                                 st.rerun()
                         
                         # BOTONES DE PUNTOS ERRADOS
-                        st.markdown("""
-                        <div style="background: #f8d7da; padding: 10px; border-radius: 10px; margin: 15px 0; text-align: center;">
-                            <h4 style="margin: 0; color: #721c24;">❌ LANZAMIENTOS ERRADOS</h4>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
                         col_e1, col_e2, col_e3 = st.columns(3)
                         with col_e1:
                             if st.button("❌ T1 ERRADO", key=f"e1_{partido_id}_{jug_sel}", use_container_width=True, type="secondary"):
@@ -468,12 +456,6 @@ if pagina == "🎮 Mesa de Control":
                                 st.rerun()
                         
                         # OTRAS ESTADÍSTICAS
-                        st.markdown("""
-                        <div style="background: #e2e3e5; padding: 10px; border-radius: 10px; margin: 15px 0; text-align: center;">
-                            <h4 style="margin: 0; color: #383d41;">📊 OTRAS ESTADÍSTICAS</h4>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
                         col_o1, col_o2, col_o3 = st.columns(3)
                         with col_o1:
                             if st.button("💪 Reb. Of.", key=f"ro_{partido_id}_{jug_sel}", use_container_width=True):
