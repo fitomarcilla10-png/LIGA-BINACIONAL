@@ -573,7 +573,8 @@ if pagina == "🎮 Mesa de Control":
         
         if eventos:
             for ev in eventos:
-                st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']})")
+                tiempo_str = ev.get('timestamp', '')
+                st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']}) — ⏱️ {tiempo_str}")
             if st.button("↩️ Deshacer última acción"):
                 borrar_ultimo_evento(partido_id)
                 st.rerun()

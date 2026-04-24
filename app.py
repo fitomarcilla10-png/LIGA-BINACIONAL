@@ -288,7 +288,8 @@ with tab_partidos:
             
             if eventos:
                 for ev in eventos:
-                    st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']})")
+                    tiempo_str = ev.get('timestamp', '')
+                    st.write(f"🔹 **{ev['equipo_nombre']}** — #{ev['dorsal']} {ev['jugador_nombre']} — {ev['tipo']} (Q{ev['cuarto']}) — ⏱️ {tiempo_str}")
             else:
                 st.info("Sin eventos registrados.")
         
